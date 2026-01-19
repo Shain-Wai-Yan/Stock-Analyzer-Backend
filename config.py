@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     alpaca_api_key: str
     alpaca_secret_key: str
     groq_api_key: Optional[str] = None
-    openbb_pat: Optional[str] = None  # OpenBB Personal Access Token (optional)
     
     # Alpaca Configuration
     alpaca_paper: bool = True

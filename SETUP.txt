@@ -5,15 +5,15 @@ STACK:
 ------
 - FastAPI (REST API)
 - Lumibot (Trading Engine)
-- OpenBB SDK (Market Data)
-- Alpaca (Broker Integration)
+- Alpaca (Market Data & Broker Integration)
 - SQLite (Database)
 - Groq (AI Sentiment Analysis)
 
 MEMORY FOOTPRINT:
 -----------------
 Optimized for Northflank Free Tier (512MB-1GB RAM)
-Estimated usage: 280-450MB under normal load
+Estimated usage: 180-280MB under normal load
+Build memory: ~400-500MB (within Northflank limits)
 
 QUICK START (Local Development):
 ---------------------------------

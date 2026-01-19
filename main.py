@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app
 app = FastAPI(
     title="Gap Scanner API",
-    description="Professional gap trading backend with Lumibot + OpenBB + FastAPI",
+    description="Professional gap trading backend with Lumibot + Alpaca + FastAPI",
     version="2.0.0",
     lifespan=lifespan,
 )
