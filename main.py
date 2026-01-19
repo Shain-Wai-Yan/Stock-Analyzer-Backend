@@ -21,7 +21,7 @@ from models import (
     StrategyStatus,
     Trade,
 )
-from data_service import get_market_gaps, get_chart_data, get_account_info, get_positions
+from data_service import get_market_gaps, get_chart_data, get_account_info, get_positions, get_market_status
 from sentiment_service import get_news_sentiment, get_gap_reason
 from backtest_service import run_backtest
 
@@ -306,6 +306,17 @@ async def get_account():
         return account
     except Exception as e:
         logger.error(f"Error fetching account: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/market-status")
+async def market_status():
+    """Get current market status (open/closed) with next open time"""
+    try:
+        status = await get_market_status()
+        return status
+    except Exception as e:
+        logger.error(f"Error fetching market status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

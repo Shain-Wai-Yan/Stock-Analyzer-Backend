@@ -7,6 +7,7 @@ from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.client import TradingClient
 from config import settings
 import logging
+import pytz
 
 logger = logging.getLogger(__name__)
 
@@ -243,3 +244,62 @@ async def get_positions() -> List[Dict]:
     except Exception as e:
         logger.error(f"Error fetching positions: {e}")
         return []
+
+
+async def get_market_status() -> Dict:
+    """
+    Get current market status (open/closed)
+    Returns market status with next open time if closed
+    """
+    try:
+        et_tz = pytz.timezone('US/Eastern')
+        now_et = datetime.now(et_tz)
+        
+        # Check if weekend
+        is_weekend = now_et.weekday() >= 5
+        
+        # Market hours: 9:30 AM - 4:00 PM ET on weekdays
+        market_open_time = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+        market_close_time = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+        
+        is_market_open = (
+            not is_weekend and
+            market_open_time <= now_et <= market_close_time
+        )
+        
+        # Calculate next market open
+        if is_weekend:
+            # Next Monday
+            days_until_monday = (7 - now_et.weekday()) % 7
+            if days_until_monday == 0:
+                days_until_monday = 1
+            next_open = (now_et + timedelta(days=days_until_monday)).replace(
+                hour=9, minute=30, second=0, microsecond=0
+            )
+        elif now_et < market_open_time:
+            # Today before open
+            next_open = market_open_time
+        else:
+            # After close, next day
+            next_open = (now_et + timedelta(days=1)).replace(
+                hour=9, minute=30, second=0, microsecond=0
+            )
+            # Skip weekend
+            if next_open.weekday() >= 5:
+                days_until_monday = (7 - next_open.weekday()) % 7
+                next_open = next_open + timedelta(days=days_until_monday)
+        
+        return {
+            "is_open": is_market_open,
+            "current_time": now_et.isoformat(),
+            "next_open": next_open.isoformat(),
+            "market_hours": "9:30 AM - 4:00 PM ET",
+        }
+    except Exception as e:
+        logger.error(f"Error getting market status: {e}")
+        return {
+            "is_open": False,
+            "current_time": datetime.now().isoformat(),
+            "next_open": None,
+            "market_hours": "9:30 AM - 4:00 PM ET",
+        }
