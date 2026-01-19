@@ -50,10 +50,16 @@ class AlpacaClient:
                     if symbol in snapshot:
                         snap = snapshot[symbol]
                         if snap.latest_trade and snap.daily_bar:
+                            # Calculate change percent manually since Bar object doesn't have change_percent
+                            daily_bar = snap.daily_bar
+                            change_pct = 0.0
+                            if daily_bar.open and daily_bar.open > 0:
+                                change_pct = ((daily_bar.close - daily_bar.open) / daily_bar.open) * 100
+                            
                             movers.append({
                                 'symbol': symbol,
                                 'price': float(snap.latest_trade.price),
-                                'change_pct': float(snap.daily_bar.change_percent) if snap.daily_bar.change_percent else 0
+                                'change_pct': float(change_pct)
                             })
                 except Exception as e:
                     print(f"Error getting snapshot for {symbol}: {e}")
