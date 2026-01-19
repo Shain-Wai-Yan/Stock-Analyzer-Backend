@@ -16,46 +16,69 @@ class GapAnalyzer:
         Scan for stocks with gaps
         Returns list of gapping stocks with basic info
         """
-        # Get market movers from Alpaca
-        movers = await self.alpaca.get_movers(limit * 2)  # Get more to filter
+        print(f"[SCANNER] Starting gap scan: min={min_gap}%, max={max_gap}%, limit={limit}")
         
-        gaps = []
-        for mover in movers:
-            symbol = mover['symbol']
+        try:
+            # Get market movers from Alpaca
+            movers = await self.alpaca.get_movers(limit * 2)  # Get more to filter
+            print(f"[SCANNER] Retrieved {len(movers)} movers from Alpaca")
             
-            # Get latest bars
-            bars = await self.alpaca.get_bars(symbol, limit=2)
-            if len(bars) < 2:
-                continue
+            if not movers:
+                print("[SCANNER] No movers found, returning empty list")
+                return []
             
-            prev_close = bars.iloc[-2]['close']
-            current_open = bars.iloc[-1]['open']
-            current_price = bars.iloc[-1]['close']
+            gaps = []
+            for mover in movers:
+                try:
+                    symbol = mover['symbol']
+                    
+                    # Get latest bars
+                    bars = await self.alpaca.get_bars(symbol, limit=5)
+                    if len(bars) < 2:
+                        print(f"[SCANNER] Insufficient data for {symbol}, skipping")
+                        continue
+                    
+                    prev_close = bars.iloc[-2]['close']
+                    current_open = bars.iloc[-1]['open']
+                    current_price = bars.iloc[-1]['close']
+                    
+                    # Calculate gap
+                    gap_pct = ((current_open - prev_close) / prev_close) * 100
+                    
+                    # Filter by gap size
+                    if min_gap <= abs(gap_pct) <= max_gap:
+                        # Calculate volume ratio
+                        avg_volume = bars['volume'].mean()
+                        current_volume = bars.iloc[-1]['volume']
+                        volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
+                        
+                        gap_data = {
+                            "symbol": symbol,
+                            "price": float(current_price),
+                            "previousClose": float(prev_close),
+                            "gapPercent": float(gap_pct),
+                            "direction": "up" if gap_pct > 0 else "down",
+                            "volume": int(current_volume),
+                            "volumeRatio": float(volume_ratio),
+                            "timestamp": bars.iloc[-1].name.isoformat() if hasattr(bars.iloc[-1].name, 'isoformat') else datetime.now().isoformat()
+                        }
+                        
+                        gaps.append(gap_data)
+                        print(f"[SCANNER] Found gap: {symbol} {gap_pct:.2f}%")
+                        
+                except Exception as e:
+                    print(f"[SCANNER] Error processing {symbol}: {e}")
+                    continue
             
-            # Calculate gap
-            gap_pct = ((current_open - prev_close) / prev_close) * 100
+            # Sort by gap size and return top results
+            gaps.sort(key=lambda x: abs(x['gapPercent']), reverse=True)
+            result = gaps[:limit]
+            print(f"[SCANNER] Scan complete: found {len(result)} gaps")
+            return result
             
-            # Filter by gap size
-            if min_gap <= abs(gap_pct) <= max_gap:
-                # Calculate volume ratio
-                avg_volume = bars['volume'].mean()
-                current_volume = bars.iloc[-1]['volume']
-                volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
-                
-                gaps.append({
-                    "symbol": symbol,
-                    "price": float(current_price),
-                    "previousClose": float(prev_close),
-                    "gapPercent": float(gap_pct),
-                    "direction": "up" if gap_pct > 0 else "down",
-                    "volume": int(current_volume),
-                    "volumeRatio": float(volume_ratio),
-                    "timestamp": bars.iloc[-1].name.isoformat()
-                })
-        
-        # Sort by gap size and return top results
-        gaps.sort(key=lambda x: abs(x['gapPercent']), reverse=True)
-        return gaps[:limit]
+        except Exception as e:
+            print(f"[SCANNER] Fatal error in scan_gaps: {e}")
+            return []
     
     async def calculate_fill_probability(self, symbol: str, lookback_days: int = 100) -> Dict:
         """

@@ -17,13 +17,20 @@ class SentimentAnalyzer:
         Analyze overall sentiment for a symbol
         Returns score from -1 (very negative) to 1 (very positive)
         """
+        # Always return neutral for now to avoid API rate limits
+        # This can be enabled once Groq API is properly configured
+        print(f"[SENTIMENT] Analyzing {symbol} (using fallback)")
+        return {"score": 0.0, "label": "neutral"}
+        
+        # Uncomment below to enable Groq sentiment analysis
+        """
         if not self.client:
             # Return neutral if Groq not configured
             return {"score": 0.0, "label": "neutral"}
         
         try:
             # Use Groq's Llama model for sentiment
-            prompt = f"""Analyze the sentiment for stock {symbol} based on recent market conditions and news.
+            prompt = f'''Analyze the sentiment for stock {symbol} based on recent market conditions and news.
             Return ONLY a JSON object with: {{"score": <number between -1 and 1>, "label": "<positive/negative/neutral>"}}
             
             Consider:
@@ -31,7 +38,7 @@ class SentimentAnalyzer:
             - Market sentiment
             - Sector trends
             
-            Response (JSON only):"""
+            Response (JSON only):'''
             
             completion = self.client.chat.completions.create(
                 model="llama-3.1-8b-instant",  # Free tier model
@@ -57,6 +64,7 @@ class SentimentAnalyzer:
         except Exception as e:
             print(f"Sentiment analysis error: {e}")
             return {"score": 0.0, "label": "neutral"}
+        """
     
     async def analyze_text(self, text: str) -> Dict:
         """

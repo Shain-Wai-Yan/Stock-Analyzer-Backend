@@ -27,33 +27,36 @@ class AlpacaClient:
         Uses Alpaca's screener
         """
         try:
-            # Get most active stocks
-            # Note: Free tier has limited screener access
-            # We'll use a predefined list of liquid stocks
+            # Predefined list of liquid stocks for gap scanning
             liquid_stocks = [
                 'AAPL', 'TSLA', 'NVDA', 'MSFT', 'GOOGL', 'AMZN', 'META',
                 'AMD', 'NFLX', 'DIS', 'BA', 'GE', 'F', 'INTC', 'SNAP',
                 'UBER', 'LYFT', 'COIN', 'SQ', 'PYPL', 'SHOP', 'RBLX',
                 'PLTR', 'SOFI', 'NIO', 'RIVN', 'LCID', 'PLUG', 'SPCE',
-                'GME', 'AMC', 'BB', 'WISH', 'CLOV', 'BBIG', 'PROG'
+                'GME', 'AMC', 'BB', 'WISH', 'CLOV', 'BBIG', 'PROG',
+                'BABA', 'PDD', 'JD', 'BIDU', 'TCOM', 'WB', 'IQ',
+                'SPOT', 'ZM', 'DOCU', 'PTON', 'ROKU', 'HOOD', 'DKNG'
             ]
             
             # Get snapshots for these stocks
             movers = []
             for symbol in liquid_stocks[:limit]:
                 try:
+                    # Use synchronous call properly
                     snapshot = self.data_client.get_stock_snapshot(
                         StockSnapshotRequest(symbol_or_symbols=symbol)
                     )
                     
                     if symbol in snapshot:
                         snap = snapshot[symbol]
-                        movers.append({
-                            'symbol': symbol,
-                            'price': float(snap.latest_trade.price),
-                            'change_pct': float(snap.daily_bar.change_percent) if snap.daily_bar else 0
-                        })
-                except:
+                        if snap.latest_trade and snap.daily_bar:
+                            movers.append({
+                                'symbol': symbol,
+                                'price': float(snap.latest_trade.price),
+                                'change_pct': float(snap.daily_bar.change_percent) if snap.daily_bar.change_percent else 0
+                            })
+                except Exception as e:
+                    print(f"Error getting snapshot for {symbol}: {e}")
                     continue
             
             return movers
