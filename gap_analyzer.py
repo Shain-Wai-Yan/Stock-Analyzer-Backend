@@ -1,12 +1,11 @@
 """
-Gap Analysis Engine using VectorBT
+Gap Analysis Engine
 Calculates gap fill probability from historical data
 """
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List
-import vectorbt as vbt
 
 class GapAnalyzer:
     def __init__(self, alpaca_client):
@@ -139,7 +138,7 @@ class GapAnalyzer:
     
     async def run_backtest(self, symbol: str, days: int = 365) -> Dict:
         """
-        Run VectorBT backtest for gap fill strategy
+        Run simple backtest for gap fill strategy
         Returns performance metrics
         """
         # Get historical data
@@ -158,49 +157,93 @@ class GapAnalyzer:
                 "total_return": 0,
                 "win_rate": 0,
                 "total_trades": 0,
-                "sharpe_ratio": 0
+                "sharpe_ratio": 0,
+                "max_drawdown": 0,
+                "avg_win": 0,
+                "avg_loss": 0
             }
         
-        # Prepare data for VectorBT
-        close = df['close']
-        high = df['high']
-        low = df['low']
+        # Identify gaps
+        df['prev_high'] = df['high'].shift(1)
+        df['prev_low'] = df['low'].shift(1)
+        df['prev_close'] = df['close'].shift(1)
+        df['open'] = df['open']
         
-        # Identify gaps (simplified for backtest)
-        prev_close = close.shift(1)
-        gap_pct = ((close - prev_close) / prev_close) * 100
+        # Gap up: open > prev_high (at least 2%)
+        df['gap_up'] = (df['open'] > df['prev_high']) & (((df['open'] - df['prev_high']) / df['prev_high']) > 0.02)
         
-        # Entry signal: gap > 2% or < -2%
-        entries = (gap_pct.abs() > 2)
+        # Gap down: open < prev_low (at least 2%)
+        df['gap_down'] = (df['open'] < df['prev_low']) & (((df['prev_low'] - df['open']) / df['prev_low']) > 0.02)
         
-        # Exit signal: gap filled (price touched previous close)
-        # Simplified: exit after 5 bars or gap filled
-        exits = entries.shift(5).fillna(False)
+        df['has_gap'] = df['gap_up'] | df['gap_down']
         
-        try:
-            # Run VectorBT portfolio simulation
-            portfolio = vbt.Portfolio.from_signals(
-                close,
-                entries,
-                exits,
-                init_cash=10000,
-                fees=0.001  # 0.1% commission
-            )
+        # Simulate trades
+        trades = []
+        initial_capital = 10000
+        capital = initial_capital
+        
+        for idx in range(1, len(df)):
+            if not df['has_gap'].iloc[idx]:
+                continue
             
-            stats = portfolio.stats()
+            # Entry
+            entry_price = df['open'].iloc[idx]
+            gap_level = df['prev_high'].iloc[idx] if df['gap_up'].iloc[idx] else df['prev_low'].iloc[idx]
             
-            return {
-                "total_return": float(stats['Total Return [%]']),
-                "win_rate": float(stats['Win Rate [%]'] / 100),
-                "total_trades": int(stats['Total Trades']),
-                "sharpe_ratio": float(stats['Sharpe Ratio']),
-                "max_drawdown": float(stats['Max Drawdown [%]']),
-                "avg_win": float(stats.get('Avg Winning Trade [%]', 0)),
-                "avg_loss": float(stats.get('Avg Losing Trade [%]', 0))
-            }
-        except Exception as e:
-            print(f"VectorBT backtest error: {e}")
-            # Return basic stats if VectorBT fails
+            # Look forward for exit (gap fill or max 10 bars)
+            exit_price = None
+            exit_idx = None
+            
+            for j in range(1, min(11, len(df) - idx)):
+                future_idx = idx + j
+                
+                # Check if gap filled
+                if df['gap_up'].iloc[idx]:
+                    # Gap up fills when low touches prev_high
+                    if df['low'].iloc[future_idx] <= gap_level:
+                        exit_price = gap_level
+                        exit_idx = future_idx
+                        break
+                else:
+                    # Gap down fills when high touches prev_low
+                    if df['high'].iloc[future_idx] >= gap_level:
+                        exit_price = gap_level
+                        exit_idx = future_idx
+                        break
+            
+            # If no fill, exit at close of 10th bar
+            if exit_price is None and idx + 10 < len(df):
+                exit_price = df['close'].iloc[idx + 10]
+                exit_idx = idx + 10
+            elif exit_price is None:
+                continue
+            
+            # Calculate trade result
+            if df['gap_up'].iloc[idx]:
+                # Short position (profit when price goes down)
+                pnl_pct = (entry_price - exit_price) / entry_price
+            else:
+                # Long position (profit when price goes up)
+                pnl_pct = (exit_price - entry_price) / entry_price
+            
+            # Apply commission (0.1% both ways)
+            pnl_pct -= 0.002
+            
+            # Calculate trade value
+            position_size = capital * 0.1  # Use 10% of capital per trade
+            pnl = position_size * pnl_pct
+            capital += pnl
+            
+            trades.append({
+                'entry_price': entry_price,
+                'exit_price': exit_price,
+                'pnl_pct': pnl_pct,
+                'pnl': pnl,
+                'bars_held': exit_idx - idx
+            })
+        
+        # Calculate statistics
+        if len(trades) == 0:
             return {
                 "total_return": 0,
                 "win_rate": 0.5,
@@ -210,3 +253,32 @@ class GapAnalyzer:
                 "avg_win": 0,
                 "avg_loss": 0
             }
+        
+        winning_trades = [t for t in trades if t['pnl_pct'] > 0]
+        losing_trades = [t for t in trades if t['pnl_pct'] <= 0]
+        
+        total_return = ((capital - initial_capital) / initial_capital) * 100
+        win_rate = len(winning_trades) / len(trades) if trades else 0
+        
+        avg_win = np.mean([t['pnl_pct'] for t in winning_trades]) * 100 if winning_trades else 0
+        avg_loss = np.mean([t['pnl_pct'] for t in losing_trades]) * 100 if losing_trades else 0
+        
+        # Calculate Sharpe ratio (simplified)
+        returns = [t['pnl_pct'] for t in trades]
+        sharpe_ratio = (np.mean(returns) / np.std(returns)) * np.sqrt(252) if np.std(returns) > 0 else 0
+        
+        # Calculate max drawdown
+        cumulative_returns = np.cumsum([t['pnl'] for t in trades])
+        running_max = np.maximum.accumulate(cumulative_returns)
+        drawdown = (cumulative_returns - running_max) / initial_capital * 100
+        max_drawdown = abs(np.min(drawdown)) if len(drawdown) > 0 else 0
+        
+        return {
+            "total_return": float(total_return),
+            "win_rate": float(win_rate),
+            "total_trades": int(len(trades)),
+            "sharpe_ratio": float(sharpe_ratio),
+            "max_drawdown": float(max_drawdown),
+            "avg_win": float(avg_win),
+            "avg_loss": float(avg_loss)
+        }
