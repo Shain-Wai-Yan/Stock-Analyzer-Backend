@@ -1,0 +1,111 @@
+GAP SCANNER BACKEND v2.0 - PRODUCTION SETUP
+===========================================
+
+STACK:
+------
+- FastAPI (REST API)
+- Lumibot (Trading Engine)
+- OpenBB SDK (Market Data)
+- Alpaca (Broker Integration)
+- SQLite (Database)
+- Groq (AI Sentiment Analysis)
+
+MEMORY FOOTPRINT:
+-----------------
+Optimized for Northflank Free Tier (512MB-1GB RAM)
+Estimated usage: 280-450MB under normal load
+
+QUICK START (Local Development):
+---------------------------------
+1. cd backend
+2. chmod +x quick-start.sh
+3. ./quick-start.sh
+4. Edit .env with your API keys
+5. ./start.sh
+
+DOCKER DEPLOYMENT:
+------------------
+docker build -t gap-scanner .
+docker run -p 8000:8000 --env-file .env gap-scanner
+
+NORTHFLANK DEPLOYMENT:
+----------------------
+1. Connect GitHub repo to Northflank
+2. Create new service from repository
+3. Set build context: /backend
+4. Add environment variables (see .env.example)
+5. Deploy
+
+Required Environment Variables:
+- ALPACA_API_KEY (get from alpaca.markets)
+- ALPACA_SECRET_KEY
+- GROQ_API_KEY (optional, from console.groq.com)
+
+API ENDPOINTS:
+--------------
+GET  /                    - Health check
+GET  /health              - Detailed health
+GET  /api/gaps            - Get current market gaps
+GET  /api/gaps/{symbol}   - Get specific gap details
+GET  /api/chart/{symbol}  - Get chart data
+GET  /api/news            - Get market news
+GET  /api/gap-reason/{symbol} - AI gap explanation
+GET  /api/backtest/{symbol}   - Run backtest
+GET  /api/status          - Strategy status
+GET  /api/positions       - Current positions
+GET  /api/account         - Account info
+POST /api/trades          - Save trade
+GET  /api/trades          - Get trade journal
+
+API Documentation: http://localhost:8000/docs
+
+FRONTEND INTEGRATION:
+---------------------
+Set NEXT_PUBLIC_API_URL in frontend .env:
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
+Or for production:
+NEXT_PUBLIC_API_URL=https://your-backend.northflank.app
+
+FEATURES:
+---------
+✓ Real-time gap scanning using Alpaca data
+✓ AI-powered sentiment analysis via Groq
+✓ Automatic backtest generation with Lumibot
+✓ SQLite database for persistence
+✓ Professional REST API with FastAPI
+✓ Memory-optimized for free hosting
+✓ Automatic reconnection handling
+✓ Position tracking and risk management
+✓ Trade journal with analytics
+
+PRODUCTION CHECKLIST:
+---------------------
+[ ] Set ALPACA_PAPER=false for live trading
+[ ] Configure CORS_ORIGINS with your domain
+[ ] Set ENABLE_LIVE_TRADING=true (carefully!)
+[ ] Monitor logs for errors
+[ ] Set up database backups
+[ ] Configure alerts for failures
+[ ] Test with paper trading first
+
+TROUBLESHOOTING:
+----------------
+- Port already in use: Change PORT in .env
+- Database errors: Delete gap_scanner.db and restart
+- Alpaca connection failed: Check API keys
+- Out of memory: Reduce WORKERS to 1
+- Import errors: pip install -r requirements.txt
+
+ARCHITECTURE:
+-------------
+main.py          - FastAPI app entry point
+config.py        - Settings management
+database.py      - Database connection
+models.py        - SQLAlchemy & Pydantic models
+strategy.py      - Lumibot trading strategy
+data_service.py  - Alpaca data fetching
+sentiment_service.py - Groq sentiment analysis
+backtest_service.py  - Backtesting logic
+
+Support: Check logs in /var/log or stdout

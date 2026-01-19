@@ -1,0 +1,92 @@
+{
+  "name": "gap-scanner-backend",
+  "description": "Professional Gap Trading Backend with Lumibot + OpenBB + FastAPI",
+  "type": "service",
+  "runtime": {
+    "type": "dockerfile",
+    "dockerfile": "Dockerfile"
+  },
+  "buildSettings": {
+    "dockerfile": {
+      "buildEngine": "kaniko",
+      "dockerFilePath": "/Dockerfile",
+      "dockerWorkDir": "/"
+    }
+  },
+  "ports": [
+    {
+      "name": "http",
+      "protocol": "HTTP",
+      "port": 8000,
+      "public": true
+    }
+  ],
+  "deployment": {
+    "instances": 1,
+    "storage": 1,
+    "docker": {
+      "configType": "default"
+    }
+  },
+  "resources": {
+    "replicas": 1,
+    "cpu": "0.2",
+    "memory": "512"
+  },
+  "health": {
+    "livenessProbe": {
+      "httpGet": {
+        "path": "/health",
+        "port": 8000,
+        "scheme": "HTTP"
+      },
+      "initialDelaySeconds": 40,
+      "periodSeconds": 30,
+      "timeoutSeconds": 10,
+      "successThreshold": 1,
+      "failureThreshold": 3
+    },
+    "readinessProbe": {
+      "httpGet": {
+        "path": "/health",
+        "port": 8000,
+        "scheme": "HTTP"
+      },
+      "initialDelaySeconds": 20,
+      "periodSeconds": 10,
+      "timeoutSeconds": 5,
+      "successThreshold": 1,
+      "failureThreshold": 3
+    }
+  },
+  "environmentVariables": [
+    {
+      "key": "ALPACA_API_KEY",
+      "value": ""
+    },
+    {
+      "key": "ALPACA_SECRET_KEY",
+      "value": ""
+    },
+    {
+      "key": "ALPACA_PAPER",
+      "value": "true"
+    },
+    {
+      "key": "GROQ_API_KEY",
+      "value": ""
+    },
+    {
+      "key": "PORT",
+      "value": "8000"
+    },
+    {
+      "key": "LOG_LEVEL",
+      "value": "INFO"
+    },
+    {
+      "key": "STRATEGY_MODE",
+      "value": "paper"
+    }
+  ]
+}
