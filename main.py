@@ -1,11 +1,12 @@
 """FastAPI application - Bridge between frontend and Lumibot strategy"""
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 import sys
+import asyncio
 from typing import List
 
 # Local imports
@@ -310,6 +311,41 @@ async def get_account():
 
 # Add datetime import
 from datetime import datetime
+
+
+# WebSocket endpoint for real-time gap updates
+@app.websocket("/ws/gaps")
+async def websocket_gaps(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time gap updates
+    Sends gap data every 30 seconds
+    """
+    await websocket.accept()
+    logger.info(f"WebSocket client connected: {websocket.client}")
+    
+    try:
+        while True:
+            # Fetch latest gaps
+            gaps = await get_market_gaps()
+            
+            # Send to client
+            await websocket.send_json({
+                "type": "gaps_update",
+                "data": gaps,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # Wait 30 seconds before next update
+            await asyncio.sleep(30)
+            
+    except WebSocketDisconnect:
+        logger.info(f"WebSocket client disconnected: {websocket.client}")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        try:
+            await websocket.close()
+        except:
+            pass
 
 
 if __name__ == "__main__":
