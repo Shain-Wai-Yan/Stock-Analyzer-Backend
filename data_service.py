@@ -10,10 +10,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Initialize Alpaca clients
+# Initialize Alpaca clients with IEX feed (works with free tier)
 stock_client = StockHistoricalDataClient(
     api_key=settings.alpaca_api_key,
     secret_key=settings.alpaca_secret_key,
+    raw_data=False,
+    url_override=None,
 )
 
 trading_client = TradingClient(
@@ -44,12 +46,13 @@ async def get_market_gaps() -> List[Dict]:
         
         for symbol in symbols:
             try:
-                # Get historical bars
+                # Get historical bars using IEX feed (free tier compatible)
                 request_params = StockBarsRequest(
                     symbol_or_symbols=symbol,
                     timeframe=TimeFrame.Day,
                     start=start_date,
                     end=end_date,
+                    feed="iex",  # Use IEX feed instead of SIP for free tier
                 )
                 bars = stock_client.get_stock_bars(request_params)
                 
@@ -62,8 +65,11 @@ async def get_market_gaps() -> List[Dict]:
                 
                 prev_close = bars_df["close"].iloc[-2]
                 
-                # Get current price
-                quote_request = StockLatestQuoteRequest(symbol_or_symbols=symbol)
+                # Get current price using IEX feed
+                quote_request = StockLatestQuoteRequest(
+                    symbol_or_symbols=symbol,
+                    feed="iex"  # Use IEX feed for free tier
+                )
                 quote = stock_client.get_stock_latest_quote(quote_request)
                 
                 if symbol not in quote:
@@ -173,6 +179,7 @@ async def get_chart_data(symbol: str, timeframe: str = "1D") -> List[Dict]:
             timeframe=alpaca_tf,
             start=start_date,
             end=end_date,
+            feed="iex",  # Use IEX feed for free tier
         )
         
         bars = stock_client.get_stock_bars(request_params)
